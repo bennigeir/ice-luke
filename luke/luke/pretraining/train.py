@@ -11,6 +11,7 @@ from argparse import Namespace
 import click
 import numpy as np
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
