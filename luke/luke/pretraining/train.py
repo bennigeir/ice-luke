@@ -11,6 +11,7 @@ from argparse import Namespace
 import click
 import numpy as np
 import torch
+import torch_xla.core.xla_model as xm
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (
@@ -150,13 +151,15 @@ def run_pretraining(args):
         if args.cpu:
             device = torch.device("cpu")
         else:
-            device = torch.device("cuda")
+            #device = torch.device("cuda")
+            device = xm.xla_device()
         num_workers = 1
         worker_index = 0
     else:
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend="nccl")
-        device = torch.device("cuda", args.local_rank)
+        #device = torch.device("cuda", args.local_rank)
+        device = xm.xla_device()
         num_workers = torch.distributed.get_world_size()
         worker_index = torch.distributed.get_rank()
 
