@@ -247,7 +247,8 @@ def run_pretraining(args):
         lr=args.learning_rate,
         betas=(args.adam_b1, args.adam_b2),
         eps=args.adam_eps,
-        grad_avg_device=torch.device("cpu") if args.grad_avg_on_cpu else device,
+        # grad_avg_device=torch.device("cpu") if args.grad_avg_on_cpu else device,
+        grad_avg_device=device,
     )
 
     if args.fp16:
