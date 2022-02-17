@@ -11,8 +11,6 @@ from argparse import Namespace
 import click
 import numpy as np
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import (
@@ -152,15 +150,13 @@ def run_pretraining(args):
         if args.cpu:
             device = torch.device("cpu")
         else:
-            #device = torch.device("cuda")
-            device = xm.xla_device()
+            device = torch.device("cuda")
         num_workers = 1
         worker_index = 0
     else:
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend="nccl")
-        #device = torch.device("cuda", args.local_rank)
-        device = xm.xla_device()
+        device = torch.device("cuda", args.local_rank)
         num_workers = torch.distributed.get_world_size()
         worker_index = torch.distributed.get_rank()
 
@@ -247,8 +243,7 @@ def run_pretraining(args):
         lr=args.learning_rate,
         betas=(args.adam_b1, args.adam_b2),
         eps=args.adam_eps,
-        # grad_avg_device=torch.device("cpu") if args.grad_avg_on_cpu else device,
-        grad_avg_device=device,
+        grad_avg_device=torch.device("cpu") if args.grad_avg_on_cpu else device,
     )
 
     if args.fp16:
@@ -399,9 +394,9 @@ def run_pretraining(args):
         if accumulation_count == args.gradient_accumulation_steps:
             if args.max_grad_norm != 0.0:
                 if args.fp16:
-                    torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm, device=device)
+                    torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                 else:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm, device=device)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
             optimizer.step()
             scheduler.step()
             model.zero_grad()

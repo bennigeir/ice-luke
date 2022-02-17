@@ -96,6 +96,7 @@ class LukePretrainingModel(LukeModel):
                 entity_scores = entity_scores.view(-1, self.config.entity_vocab_size)
 
                 # RuntimeError: "nll_loss_forward_reduce_cuda_kernel_2d_index" not implemented for 'Int'
+                print(entity_scores, target_entity_labels)
                 ret["masked_entity_loss"] = loss_fn(entity_scores, target_entity_labels)
                 ret["masked_entity_correct"] = (torch.argmax(entity_scores, 1).data == target_entity_labels.data).sum()
                 ret["masked_entity_total"] = target_entity_labels.ne(-1).sum()
