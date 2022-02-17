@@ -399,9 +399,9 @@ def run_pretraining(args):
         if accumulation_count == args.gradient_accumulation_steps:
             if args.max_grad_norm != 0.0:
                 if args.fp16:
-                    torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm, device=device)
                 else:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm, device=device)
             optimizer.step()
             scheduler.step()
             model.zero_grad()
