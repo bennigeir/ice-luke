@@ -66,5 +66,16 @@ class LukeForNamedEntityRecognition(LukeEntityAwareAttentionModel):
         if labels is None:
             return logits
 
+        # class weight = 1 - ( number of samples of the class / total number of samples)
+        # return ["NIL", "MISC", "PER", "ORG", "LOC"]
+
+        class_weights = torch.Tensor([0.055874, 0.989724, 0.976223, 0.987831, 0.990348]).to(torch.float16).cuda()
+        #class_weights = torch.Tensor([0.989724, 0.055874, 0.976223, 0.987831, 0.990348]).to(torch.float16).cuda()
+        #class_weights = torch.Tensor([1, 0.055874, 0.989724, 0.976223, 0.987831, 0.990348]).to(torch.float16).cuda()
+
+        #print(labels.view(-1))
+        #print(labels)
+
         loss_fn = CrossEntropyLoss(ignore_index=-1)
+        #loss_fn = CrossEntropyLoss(ignore_index=-1, reduction='mean', weight=class_weights)
         return (loss_fn(logits.view(-1, self.num_labels), labels.view(-1)),)

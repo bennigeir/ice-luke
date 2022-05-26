@@ -29,11 +29,13 @@ def cli():
 
 
 @cli.command()
-@click.option("--data-dir", type=click.Path(exists=True), default="data/entity_disambiguation")
+#@click.option("--data-dir", type=click.Path(exists=True), default="data/entity_disambiguation")
+@click.option("--data-dir", type=click.Path(exists=True), default="data/ed_is")
 @click.option(
     "-t",
     "--test-set",
-    default=["test_b", "test_b_ppr", "ace2004", "aquaint", "msnbc", "wikipedia", "clueweb"],
+    #default=["test_b", "test_b_ppr", "ace2004", "aquaint", "msnbc", "wikipedia", "clueweb"],
+    default=["test_b"],
     multiple=True,
 )
 @click.option("--do-train/--no-train", default=False)
@@ -45,7 +47,7 @@ def cli():
 @click.option("--masked-entity-prob", default=0.9)
 @click.option("--use-context-entities/--no-context-entities", default=True)
 @click.option(
-    "--context-entity-selection-order", default="highest_prob", type=click.Choice(["natural", "random", "highest_prob"])
+    "--context-entity-selection-order", default="highest_prob", type=click.Choice(["natural", "random", "highest_prob","sec_highest_prob"])
 )
 @click.option("--document-split-mode", default="per_mention", type=click.Choice(["simple", "per_mention"]))
 @click.option("--fix-entity-emb/--update-entity-emb", default=True)
@@ -75,10 +77,11 @@ def run(common_args, **task_args):
 
     model_config = args.model_config
     model_config.entity_vocab_size = len(entity_vocab)
-
+    
     model_weights = args.model_weights
     orig_entity_vocab = args.entity_vocab
     orig_entity_emb = model_weights["entity_embeddings.entity_embeddings.weight"]
+
     if orig_entity_emb.size(0) != len(entity_vocab):  # detect whether the model is fine-tuned
         entity_emb = orig_entity_emb.new_zeros((len(entity_titles) + 2, model_config.hidden_size))
         orig_entity_bias = model_weights["entity_predictions.bias"]
@@ -93,6 +96,7 @@ def run(common_args, **task_args):
         model_weights["entity_predictions.decoder.weight"] = entity_emb
         model_weights["entity_predictions.bias"] = entity_bias
         del orig_entity_bias, entity_emb, entity_bias
+
     del orig_entity_emb
 
     model = LukeForEntityDisambiguation(model_config)
@@ -123,6 +127,7 @@ def run(common_args, **task_args):
         return ret
 
     if args.do_train:
+
         train_data = convert_documents_to_features(
             dataset.train,
             args.tokenizer,
@@ -133,6 +138,7 @@ def run(common_args, **task_args):
             args.max_candidate_length,
             args.max_mention_length,
         )
+
         train_dataloader = DataLoader(train_data, batch_size=args.train_batch_size, collate_fn=collate_fn, shuffle=True)
 
         logger.info("Fix entity embeddings during training: %s", args.fix_entity_emb)
@@ -157,6 +163,8 @@ def run(common_args, **task_args):
     if args.do_eval:
         model.eval()
 
+        print("Test dataset: " ,args.test_set)
+
         for dataset_name in args.test_set:
             print("***** Dataset: %s *****" % dataset_name)
             eval_documents = getattr(dataset, dataset_name)
@@ -180,7 +188,7 @@ def run(common_args, **task_args):
 
         if args.output_dir:
             output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-            with open(output_eval_file, "w") as f:
+            with open(output_eval_file, "w", encoding='utf-8') as f:
                 json.dump(results, f, indent=2, sort_keys=True)
 
     return results
@@ -249,6 +257,7 @@ def evaluate(args, eval_dataloader, model, entity_vocab, output_file=None):
     documents = []
     mentions = []
     reverse_entity_vocab = {v: k for k, v in entity_vocab.items()}
+
     for item in tqdm(eval_dataloader, leave=False):  # the batch size must be 1
         inputs = {
             k: v.to(args.device) for k, v in item.items() if k not in ("document", "mentions", "target_mention_indices")
@@ -257,6 +266,7 @@ def evaluate(args, eval_dataloader, model, entity_vocab, output_file=None):
         entity_attention_mask = inputs.pop("entity_attention_mask")
         input_entity_ids = entity_ids.new_full(entity_ids.size(), 1)  # [MASK]
         entity_length = entity_ids.size(1)
+
         with torch.no_grad():
             if args.use_context_entities:
                 result = torch.zeros(entity_length, dtype=torch.long)
@@ -266,13 +276,16 @@ def evaluate(args, eval_dataloader, model, entity_vocab, output_file=None):
                         0
                     ]
                     probs = F.softmax(logits, dim=2) * (input_entity_ids == 1).unsqueeze(-1).type_as(logits)
+                    
                     max_probs, max_indices = torch.max(probs.squeeze(0), dim=1)
+
                     if args.context_entity_selection_order == "highest_prob":
                         target_index = torch.argmax(max_probs, dim=0)
                     elif args.context_entity_selection_order == "random":
                         target_index = random.choice((input_entity_ids == 1).squeeze(0).nonzero().view(-1).tolist())
                     elif args.context_entity_selection_order == "natural":
                         target_index = (input_entity_ids == 1).squeeze(0).nonzero().view(-1)[0]
+
                     input_entity_ids[0, target_index] = max_indices[target_index]
                     result[target_index] = max_indices[target_index]
                     prediction_order[target_index] = n
@@ -336,9 +349,11 @@ def evaluate(args, eval_dataloader, model, entity_vocab, output_file=None):
             )
 
     if output_file:
+        #with open(output_file, "w", encoding='utf-8') as f:
         with open(output_file, "w") as f:
             for obj in eval_predictions:
                 f.write(json.dumps(obj) + "\n")
+                #f.write(json.dumps(obj, ensure_ascii=False).encode('utf8') + "\n")
 
     precision = num_correct / num_mentions_with_candidates
     recall = num_correct / num_mentions

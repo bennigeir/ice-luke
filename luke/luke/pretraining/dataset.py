@@ -60,7 +60,9 @@ def build_wikipedia_pretraining_dataset(
 class WikipediaPretrainingDataset(object):
     def __init__(self, dataset_dir: str):
         self._dataset_dir = dataset_dir
-        with open(os.path.join(dataset_dir, METADATA_FILE)) as metadata_file:
+        # added utf-8
+        with open(os.path.join(dataset_dir, METADATA_FILE), encoding='utf-8') as metadata_file:
+            # added decode
             self.metadata = json.load(metadata_file)
 
     def __len__(self):
@@ -137,6 +139,85 @@ class WikipediaPretrainingDataset(object):
                     )
             except tf.errors.OutOfRangeError:
                 pass
+
+    @classmethod
+    def build(
+        cls,
+        dump_db: DumpDB,
+        tokenizer: PreTrainedTokenizer,
+        sentence_tokenizer: SentenceTokenizer,
+        entity_vocab: EntityVocab,
+        output_dir: str,
+        max_seq_length: int,
+        max_entity_length: int,
+        max_mention_length: int,
+        min_sentence_length: int,
+        include_sentences_without_entities: bool,
+        include_unk_entities: bool,
+        pool_size: int,
+        chunk_size: int,
+        max_num_documents: int,
+    ):
+
+        target_titles = [
+            title
+            for title in dump_db.titles()
+            if not (":" in title and title.lower().split(":")[0] in ("image", "file", "category"))
+        ]
+        random.shuffle(target_titles)
+
+        if max_num_documents is not None:
+            target_titles = target_titles[:max_num_documents]
+
+        max_num_tokens = max_seq_length - 2  # 2 for [CLS] and [SEP]
+
+        tokenizer.save_pretrained(output_dir)
+
+        entity_vocab.save(os.path.join(output_dir, ENTITY_VOCAB_FILE))
+        number_of_items = 0
+        tf_file = os.path.join(output_dir, DATASET_FILE)
+        options = tf.io.TFRecordOptions(tf.compat.v1.io.TFRecordCompressionType.GZIP)
+        with TFRecordWriter(tf_file, options=options) as writer:
+            with tqdm(total=len(target_titles)) as pbar:
+                initargs = (
+                    dump_db,
+                    tokenizer,
+                    sentence_tokenizer,
+                    entity_vocab,
+                    max_num_tokens,
+                    max_entity_length,
+                    max_mention_length,
+                    min_sentence_length,
+                    include_sentences_without_entities,
+                    include_unk_entities,
+                )
+                with closing(
+                    Pool(pool_size, initializer=WikipediaPretrainingDataset._initialize_worker, initargs=initargs)
+                ) as pool:
+                    for ret in pool.imap(
+                        WikipediaPretrainingDataset._process_page, target_titles, chunksize=chunk_size
+                    ):
+                        for data in ret:
+                            writer.write(data)
+                            number_of_items += 1
+                        pbar.update()
+
+        # added utf-8
+        # added decode
+        with open(os.path.join(output_dir, METADATA_FILE), "w", encoding='utf-8') as metadata_file:
+            json.dump(
+                dict(
+                    number_of_items=number_of_items,
+                    max_seq_length=max_seq_length,
+                    max_entity_length=max_entity_length,
+                    max_mention_length=max_mention_length,
+                    min_sentence_length=min_sentence_length,
+                    tokenizer_class=tokenizer.__class__.__name__,
+                    language=dump_db.language,
+                ),
+                metadata_file,
+                indent=2,
+            )
 
     @staticmethod
     def _initialize_worker(
@@ -280,82 +361,3 @@ class WikipediaPretrainingDataset(object):
                 words = []
                 links = []
         return ret
-
-    @classmethod
-    def build(
-        cls,
-        dump_db: DumpDB,
-        tokenizer: PreTrainedTokenizer,
-        sentence_tokenizer: SentenceTokenizer,
-        entity_vocab: EntityVocab,
-        output_dir: str,
-        max_seq_length: int,
-        max_entity_length: int,
-        max_mention_length: int,
-        min_sentence_length: int,
-        include_sentences_without_entities: bool,
-        include_unk_entities: bool,
-        pool_size: int,
-        chunk_size: int,
-        max_num_documents: int,
-    ):
-
-        target_titles = [
-            title
-            for title in dump_db.titles()
-            if not (":" in title and title.lower().split(":")[0] in ("image", "file", "category"))
-        ]
-        random.shuffle(target_titles)
-
-        if max_num_documents is not None:
-            target_titles = target_titles[:max_num_documents]
-
-        max_num_tokens = max_seq_length - 2  # 2 for [CLS] and [SEP]
-
-        tokenizer.save_pretrained(output_dir)
-
-        entity_vocab.save(os.path.join(output_dir, ENTITY_VOCAB_FILE))
-        number_of_items = 0
-        tf_file = os.path.join(output_dir, DATASET_FILE)
-        options = tf.io.TFRecordOptions(tf.compat.v1.io.TFRecordCompressionType.GZIP)
-        with TFRecordWriter(tf_file, options=options) as writer:
-            with tqdm(total=len(target_titles)) as pbar:
-                initargs = (
-                    dump_db,
-                    tokenizer,
-                    sentence_tokenizer,
-                    entity_vocab,
-                    max_num_tokens,
-                    max_entity_length,
-                    max_mention_length,
-                    min_sentence_length,
-                    include_sentences_without_entities,
-                    include_unk_entities,
-                )
-                with closing(
-                    Pool(pool_size, initializer=WikipediaPretrainingDataset._initialize_worker, initargs=initargs)
-                ) as pool:
-                    for ret in pool.imap(
-                        WikipediaPretrainingDataset._process_page, target_titles, chunksize=chunk_size
-                    ):
-                        for data in ret:
-                            writer.write(data)
-                            number_of_items += 1
-                        pbar.update()
-
-        with open(os.path.join(output_dir, METADATA_FILE), "w") as metadata_file:
-            json.dump(
-                dict(
-                    number_of_items=number_of_items,
-                    max_seq_length=max_seq_length,
-                    max_entity_length=max_entity_length,
-                    max_mention_length=max_mention_length,
-                    min_sentence_length=min_sentence_length,
-                    tokenizer_class=tokenizer.__class__.__name__,
-                    language=dump_db.language,
-                ),
-                metadata_file,
-                indent=2,
-            )
-
-    

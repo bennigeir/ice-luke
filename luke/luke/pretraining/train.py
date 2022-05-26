@@ -179,7 +179,6 @@ def run_pretraining(args):
     num_train_steps_per_epoch = math.ceil(dataset_size / args.batch_size)
     num_train_steps = math.ceil(dataset_size / args.batch_size * args.num_epochs)
     train_batch_size = int(args.batch_size / args.gradient_accumulation_steps / num_workers)
-    print(train_batch_size)
 
     entity_vocab = dataset_list[0].entity_vocab
     config = LukeConfig(

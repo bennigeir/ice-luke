@@ -1,0 +1,6 @@
+{
+  "global_step": 10074,
+  "model_file": "model_epoch1.bin",
+  "optimizer_file": "optimizer_epoch1.bin",
+  "scheduler_file": "scheduler_epoch1.bin"
+}

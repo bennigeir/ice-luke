@@ -24,8 +24,6 @@ Entity = namedtuple("Entity", ["title", "language"])
 
 _dump_db = None  # global variable used in multiprocessing workers
 
-ENC = 'utf-8'
-
 
 @click.command()
 @click.argument("dump_db_file", type=click.Path())
@@ -56,8 +54,9 @@ class EntityVocab(object):
             self._parse_jsonl_vocab_file(vocab_file)
 
     def _parse_tsv_vocab_file(self, vocab_file: str):
-        with open(vocab_file, "r") as f:
+        with open(vocab_file, "r", encoding="utf-8") as f:
             for (index, line) in enumerate(f):
+                #print(line)
                 title, count = line.rstrip().split("\t")
                 entity = Entity(title, None)
                 self.vocab[entity] = index
@@ -65,7 +64,8 @@ class EntityVocab(object):
                 self.inv_vocab[index] = [entity]
 
     def _parse_jsonl_vocab_file(self, vocab_file: str):
-        with open(vocab_file, "r") as f:
+        print(vocab_file)
+        with open(vocab_file, "r", encoding='utf-8') as f:
             entities_json = [json.loads(line) for line in f]
 
         for item in entities_json:
@@ -113,12 +113,15 @@ class EntityVocab(object):
         return self.counter.get(entity, 0)
 
     def save(self, out_file: str):
-        with open(out_file, "w") as f:
+        with open(out_file, "w", encoding='utf-8') as f:
             for ent_id, entities in self.inv_vocab.items():
-                count = self.counter[entities[0]]
-                item = {"id": ent_id, "entities": [(e.title, e.language) for e in entities], "count": count}
-                json.dump(item, f)
-                f.write("\n")
+                try:
+                    count = self.counter[entities[0]]
+                    item = {"id": ent_id, "entities": [(e.title, e.language) for e in entities], "count": count}
+                    json.dump(item, f, ensure_ascii=False).encoding('utf-8')
+                    f.write("\n")
+                except:
+                    1+1
 
     @staticmethod
     def build(
@@ -155,12 +158,11 @@ class EntityVocab(object):
                     if len(title_dict) == vocab_size:
                         break
 
-        # with open(out_file, "w") as f:
         with open(out_file, "w", encoding='utf-8') as f:
             for ent_id, (title, count) in enumerate(title_dict.items()):
-                # json.dump({"id": ent_id, "entities": [[title, language]], "count": count}, f)
+                #json.dump({"id": ent_id, "entities": [[title, language]], "count": count}, f)
                 try:
-                    json.dump({"id": ent_id, "entities": [[title, language]], "count": count}, f, ensure_ascii=False).encode('utf8')
+                    json.dump({"id": ent_id, "entities": [[title, language]], "count": count}, f, ensure_ascii=False).encode('utf-8')
                     f.write("\n")
                 except:
                     1+1

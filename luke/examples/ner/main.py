@@ -53,14 +53,25 @@ def run(common_args, **task_args):
     args.experiment.log_parameters({p.name: getattr(args, p.name) for p in run.params})
 
     args.model_config.entity_vocab_size = 2
+    print(args.model_weights['lm_head.layer_norm.bias'])
     entity_emb = args.model_weights["entity_embeddings.entity_embeddings.weight"]
     mask_emb = entity_emb[args.entity_vocab[MASK_TOKEN]].unsqueeze(0)
+
+
+    # BREYTA entity_vocab.jsonl TO TSV!
+    print(entity_emb.shape)                                 # torch.Size([500000, 256])   torch.Size([59943, 150])
+    print(entity_emb[:1].shape)                             # torch.Size([1, 256])        torch.Size([1, 150])
+    print(mask_emb.shape)                                   # torch.Size([1, 256])        torch.Size([1, 1, 59943, 150])
+    print(entity_emb[args.entity_vocab[MASK_TOKEN]].shape)  # torch.Size([256])           torch.Size([1, 59943, 150])
+    print(torch.cat([entity_emb[:1], mask_emb]))            # 
+
     args.model_weights["entity_embeddings.entity_embeddings.weight"] = torch.cat([entity_emb[:1], mask_emb])
 
     train_dataloader, _, _, processor = load_examples(args, "train")
     results = {}
 
     if args.do_train:
+        print(processor.get_labels())
         model = LukeForNamedEntityRecognition(args, len(processor.get_labels()))
         model.load_state_dict(args.model_weights, strict=False)
         model.to(args.device)
@@ -135,9 +146,11 @@ def evaluate(args, model, fold, output_file=None):
         predicted_sequence = ["O"] * len(example.words)
         for _, span, label in sorted(doc_results, key=lambda o: o[0], reverse=True):
             if all([o == "O" for o in predicted_sequence[span[0] : span[1]]]):
-                predicted_sequence[span[0]] = "B-" + label
+                #predicted_sequence[span[0]] = "B-" + label
+                predicted_sequence[span[0]] = label
                 if span[1] - span[0] > 1:
-                    predicted_sequence[span[0] + 1 : span[1]] = ["I-" + label] * (span[1] - span[0] - 1)
+                    #predicted_sequence[span[0] + 1 : span[1]] = ["I-" + label] * (span[1] - span[0] - 1)
+                    predicted_sequence[span[0] + 1 : span[1]] = [label] * (span[1] - span[0] - 1)
 
         for sent_index in range(len(example.sentence_boundaries) - 1):
             sent_start, sent_end = example.sentence_boundaries[sent_index : sent_index + 2]
@@ -146,13 +159,14 @@ def evaluate(args, model, fold, output_file=None):
             sent_labels_list.append(example.labels[sent_start:sent_end])
 
     # convert IOB2 -> IOB1
+    '''
     prev_type = None
     for sent_predictions in sent_predictions_list:
         for n, label in enumerate(sent_predictions):
             if label[0] == "B" and label[2:] != prev_type:
                 sent_predictions[n] = "I" + label[1:]
             prev_type = label[2:]
-
+    '''
     if output_file:
         with open(output_file, "w") as f:
             for (sent_words, sent_predictions, sent_labels) in zip(

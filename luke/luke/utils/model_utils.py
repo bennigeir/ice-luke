@@ -93,18 +93,24 @@ class ModelArchive(object):
 
     @classmethod
     def load(cls, archive_path: str):
+        print("ARCHIVE PATH: {}".format(archive_path))
         if os.path.isdir(archive_path):
             return cls._load(archive_path, MODEL_FILE)
         elif archive_path.endswith(".bin"):
             return cls._load(os.path.dirname(archive_path), os.path.basename(archive_path))
 
-        with tempfile.TemporaryDirectory() as temp_path:
-            f = tarfile.open(archive_path)
-            f.extractall(temp_path)
-            return cls._load(temp_path, MODEL_FILE)
+        #with tempfile.TemporaryDirectory() as temp_path:
+        temp_path = '/temp'
+        f = tarfile.open(archive_path)
+        f.extractall(temp_path)
+        return cls._load(temp_path, MODEL_FILE)
 
     @staticmethod
     def _load(path: str, model_file: str):
+
+        print(os.getcwd())  
+        print(os.path.join(path, model_file))
+        
         state_dict = torch.load(os.path.join(path, model_file), map_location="cpu")
         with open(os.path.join(path, METADATA_FILE)) as metadata_file:
             metadata = json.load(metadata_file)

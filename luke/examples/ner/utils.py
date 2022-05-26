@@ -4,6 +4,11 @@ import os
 import unicodedata
 from transformers import RobertaTokenizer
 
+##
+from transformers import AutoTokenizer, AutoModelForMaskedLM
+##
+
+
 
 class InputExample(object):
     def __init__(self, guid, words, labels, sentence_boundaries):
@@ -46,6 +51,8 @@ class InputFeatures(object):
 class CoNLLProcessor(object):
     def get_train_examples(self, data_dir):
         return list(self._create_examples(self._read_data(os.path.join(data_dir, "eng.train")), "train"))
+        #return list(self._create_examples(self._read_data(os.path.join(data_dir, "eng_med.train")), "train"))
+        #return list(self._create_examples(self._read_data(os.path.join(data_dir, "eng_small.train")), "train"))
 
     def get_dev_examples(self, data_dir):
         return list(self._create_examples(self._read_data(os.path.join(data_dir, "eng.testa")), "dev"))
@@ -54,7 +61,10 @@ class CoNLLProcessor(object):
         return list(self._create_examples(self._read_data(os.path.join(data_dir, "eng.testb")), "test"))
 
     def get_labels(self):
-        return ["NIL", "MISC", "PER", "ORG", "LOC"]
+        #return ["NIL", "MISC", "PER", "ORG", "LOC"]
+        return ["NIL", "B-MISC", "B-PER", "B-ORG", "B-LOC", "I-MISC", "I-PER", "I-ORG", "I-LOC"]
+        #return ["NIL", "B-MISC", "B-PER", "B-ORG", "B-LOC", "B-DATE", "B-TIME", "B-PERC", "B-MON",
+        #"I-MISC", "I-PER", "I-ORG", "I-LOC", "I-DATE", "I-TIME", "I-PERC", "I-MON"]
 
     def _read_data(self, input_file):
         data = []
@@ -122,6 +132,13 @@ def convert_examples_to_features(
         for n, label in enumerate(example.labels):
             if label == "O" or n in example.sentence_boundaries:
                 if start is not None:
+                    #print(start)
+                    #print(cur_type)
+                    #print(n)
+                    #print(token2subword[n])
+                    #print(token2subword[start])
+                    #print(label_map[cur_type])
+
                     entity_labels[(token2subword[start], token2subword[n])] = label_map[cur_type]
                     start = None
                     cur_type = None
@@ -130,16 +147,19 @@ def convert_examples_to_features(
                 if start is not None:
                     entity_labels[(token2subword[start], token2subword[n])] = label_map[cur_type]
                 start = n
-                cur_type = label[2:]
+                #cur_type = label[2:]
+                cur_type = label
 
             elif label.startswith("I"):
                 if start is None:
                     start = n
-                    cur_type = label[2:]
+                    #cur_type = label[2:]
+                    cur_type = label
                 elif cur_type != label[2:]:
                     entity_labels[(token2subword[start], token2subword[n])] = label_map[cur_type]
                     start = n
-                    cur_type = label[2:]
+                    #cur_type = label[2:]
+                    cur_type = label
 
         if start is not None:
             entity_labels[(token2subword[start], len(subwords))] = label_map[cur_type]
@@ -236,7 +256,8 @@ def convert_examples_to_features(
                     )
                 )
 
-        assert not entity_labels
+        #assert not entity_labels
+        print(entity_labels)
 
     return features
 

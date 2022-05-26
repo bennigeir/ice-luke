@@ -13,24 +13,81 @@ logger = logging.getLogger(__name__)
 
 punc_remover = re.compile(r"[\W]+")
 
+is_data = True
+en_data = False
 
 class EntityDisambiguationDataset(object):
     def __init__(self, dataset_dir):
-        person_names = frozenset(load_person_names(os.path.join(dataset_dir, "persons.txt")))
 
-        self.train = load_documents(
-            os.path.join(dataset_dir, "aida_train.csv"), os.path.join(dataset_dir, "aida_train.txt"), person_names
-        )
-        self.test_a = load_documents(
-            os.path.join(dataset_dir, "aida_testA.csv"),
-            os.path.join(dataset_dir, "testa_testb_aggregate_original"),
-            person_names,
-        )
-        self.test_b = load_documents(
-            os.path.join(dataset_dir, "aida_testB.csv"),
-            os.path.join(dataset_dir, "testa_testb_aggregate_original"),
-            person_names,
-        )
+        if is_data:
+          
+          dataset_dir = 'data/ed_is'
+
+          person_names = frozenset(load_person_names(os.path.join(dataset_dir, "folk.txt")))
+
+          self.train = load_documents(
+              # LOCAL
+              # os.path.join(dataset_dir, "aida_is_train.csv"),
+              # os.path.join(dataset_dir, "aida_is_train_70.txt"),
+              # GLOBAL
+              os.path.join(dataset_dir, "aida_is_train-GLOBAL.csv"),
+              os.path.join(dataset_dir, "aida_is_train_70-GLOBAL.txt"),
+              person_names
+          )
+          self.test_a = load_documents(
+              # LOCAL
+              # os.path.join(dataset_dir, "aida_is_test_A.csv"),
+              # os.path.join(dataset_dir, "aida_is_train_30"),
+              # GLOBAL
+              os.path.join(dataset_dir, "aida_is_test_A-GLOBAL.csv"),
+              os.path.join(dataset_dir, "aida_is_train_30-GLOBAL"),
+              person_names,
+          )
+          self.test_b = load_documents(
+              # LOCAL
+              # os.path.join(dataset_dir, "aida_is_test_B.csv"),
+              # os.path.join(dataset_dir, "aida_is_train_30"),
+              # GLOBAL
+              os.path.join(dataset_dir, "aida_is_test_B-GLOBAL.csv"),
+              os.path.join(dataset_dir, "aida_is_train_30-GLOBAL"),
+              person_names,
+          )
+
+          valid_titles = None
+          wikipedia_titles_file = os.path.join(dataset_dir, "iswiki-20220101-all-titles.txt")
+
+          redirects = {}
+          wikipedia_redirects_file = os.path.join(dataset_dir, "iswiki-20220101-redirect.tsv")
+
+        if en_data:
+
+          dataset_dir = 'data/entity_disambiguation'
+          
+          person_names = frozenset(load_person_names(os.path.join(dataset_dir, "persons.txt")))
+
+          self.train = load_documents(
+              os.path.join(dataset_dir, "aida_train.csv"),
+              os.path.join(dataset_dir, "aida_train_NME.txt"),
+              person_names
+          )
+          self.test_a = load_documents(
+              os.path.join(dataset_dir, "aida_testA.csv"),
+              os.path.join(dataset_dir, "testa_testb_aggregate_original_NME"),
+              person_names,
+          )
+          self.test_b = load_documents(
+              os.path.join(dataset_dir, "aida_testB.csv"),
+              os.path.join(dataset_dir, "testa_testb_aggregate_original_NME"),
+              person_names,
+          )
+
+          valid_titles = None
+          wikipedia_titles_file = os.path.join(dataset_dir, "enwiki_20181220_titles.txt")
+
+          redirects = {}
+          wikipedia_redirects_file = os.path.join(dataset_dir, "enwiki_20181220_redirects.tsv")
+
+        '''
         self.ace2004 = load_documents(
             os.path.join(dataset_dir, "wned-ace2004.csv"), os.path.join(dataset_dir, "ace2004.conll"), person_names
         )
@@ -52,20 +109,27 @@ class EntityDisambiguationDataset(object):
         self.test_b_ppr = load_ppr_candidates(
             copy.deepcopy(self.test_b), os.path.join(dataset_dir, "pershina_candidates")
         )
+        '''
 
-        valid_titles = None
-        wikipedia_titles_file = os.path.join(dataset_dir, "enwiki_20181220_titles.txt")
+        #valid_titles = None
+        #wikipedia_titles_file = os.path.join(dataset_dir, "enwiki_20181220_titles.txt")
+        #wikipedia_titles_file = os.path.join(dataset_dir, "iswiki-20220101-all-titles.txt")
         if os.path.exists(wikipedia_titles_file):
-            with open(wikipedia_titles_file, encoding='utf-8') as f:
+            #with open(wikipedia_titles_file, encoding='utf-8') as f:
+            with open(wikipedia_titles_file) as f:
                 valid_titles = frozenset([line.rstrip() for line in f])
-
-        redirects = {}
-        wikipedia_redirects_file = os.path.join(dataset_dir, "enwiki_20181220_redirects.tsv")
+        print(len(valid_titles))
+        
+        #redirects = {}
+        #wikipedia_redirects_file = os.path.join(dataset_dir, "enwiki_20181220_redirects.tsv")
+        #wikipedia_redirects_file = os.path.join(dataset_dir, "iswiki-20220101-redirect.tsv")
         if os.path.exists(wikipedia_redirects_file):
-            with open(wikipedia_redirects_file, encoding='utf-8') as f:
+            #with open(wikipedia_redirects_file, encoding='utf-8') as f:
+            with open(wikipedia_redirects_file) as f:
                 for line in f:
                     (src, dest) = line.rstrip().split("\t")
                     redirects[src] = dest
+        print(len(redirects))
 
         # build entity vocabulary and resolve Wikipedia redirects
         for documents in self.get_all_datasets():
@@ -74,25 +138,27 @@ class EntityDisambiguationDataset(object):
                 for mention in document.mentions:
                     mention.title = redirects.get(mention.title, mention.title)
                     if valid_titles and mention.title not in valid_titles:
+                        print("Invalid title: %s", mention.title)
                         logger.debug("Invalid title: %s", mention.title)
                         continue
                     new_mentions.append(mention)
                     for candidate in mention.candidates:
                         candidate.title = redirects.get(candidate.title, candidate.title)
                 document.mentions = new_mentions
+                
 
     def get_all_datasets(self):
         return (
             self.train,
             self.test_a,
             self.test_b,
-            self.ace2004,
-            self.aquaint,
-            self.clueweb,
-            self.msnbc,
-            self.wikipedia,
-            self.test_a_ppr,
-            self.test_b_ppr,
+            #self.ace2004,
+            #self.aquaint,
+            #self.clueweb,
+            #self.msnbc,
+            #self.wikipedia,
+            #self.test_a_ppr,
+            #self.test_b_ppr,
         )
 
 
@@ -126,6 +192,7 @@ class Candidate(object):
     def __init__(self, title, prior_prob):
         self.title = title
         self.prior_prob = prior_prob
+        #self.prior_prob = 0
 
     def __repr__(self):
         return "<Candidate %s (prior prob: %.3f)>" % (self.title, self.prior_prob)
@@ -160,15 +227,19 @@ class InputFeatures(object):
 
 
 def load_person_names(input_file):
-    with open(input_file, encoding='utf-8') as f:
+    #with open(input_file, encoding='utf-8') as f:
+    with open(input_file) as f:
         return [line.strip() for line in f]
 
 
 def load_documents(csv_path, conll_path, person_names):
+    print(csv_path, conll_path)
     document_data = {}
     mention_data = load_mentions_from_csv_file(csv_path, person_names)
+    #print(mention_data)
 
-    with open(conll_path, "r", encoding='utf-8') as f:
+    #with open(conll_path, "r", encoding='utf-8') as f:
+    with open(conll_path, "r") as f:
         cur_doc = {}
 
         for line in f:
@@ -190,72 +261,93 @@ def load_documents(csv_path, conll_path, person_names):
                         )
 
                 cur_doc["words"].append(comps[0])
-
+    #print(document_data)
     documents = []
 
     # merge with the mention_data
     for (doc_name, mentions) in mention_data.items():
-        # This document is excluded in Le and Titov 2018:
-        # https://github.com/lephong/mulrel-nel/blob/db14942450f72c87a4d46349860e96ef2edf353d/nel/dataset.py#L221
-        if doc_name == "Jiří_Třanovský Jiří_Třanovský":
-            continue
-        document = document_data[doc_name.split()[0]]
+        
+        #document = document_data[doc_name.split()[0]]
+        try:
+              # This document is excluded in Le and Titov 2018:
+              # https://github.com/lephong/mulrel-nel/blob/db14942450f72c87a4d46349860e96ef2edf353d/nel/dataset.py#L221
+          if doc_name == "Jiří_Třanovský Jiří_Třanovský":
+              continue
+          document = document_data[doc_name.split()[0]]
+          
+          #print('doc_name: {}'.format(doc_name))
+          #print('document: {}'.format(document))
+          #print('mentions: {}'.format(mentions))
 
-        mention_span_index = 0
-        for mention in mentions:
-            mention_text = punc_remover.sub("", mention["text"].lower())
+          mention_span_index = 0
+          for mention in mentions:
+              mention_text = punc_remover.sub("", mention["text"].lower())
 
-            while True:
-                doc_mention_span = document["mention_spans"][mention_span_index]
-                doc_mention_text = " ".join(document["words"][doc_mention_span["start"] : doc_mention_span["end"]])
-                doc_mention_text = punc_remover.sub("", doc_mention_text.lower())
-                if doc_mention_text == mention_text:
-                    mention.update(doc_mention_span)
-                    document["mentions"].append(mention)
-                    mention_span_index += 1
-                    break
-                else:
-                    mention_span_index += 1
+              while True:
+                  #print(document["mention_spans"],mention_span_index)
+                  doc_mention_span = document["mention_spans"][mention_span_index]
+                  doc_mention_text = " ".join(document["words"][doc_mention_span["start"] : doc_mention_span["end"]])
+                  doc_mention_text = punc_remover.sub("", doc_mention_text.lower())
+                  if doc_mention_text == mention_text:
+                      mention.update(doc_mention_span)
+                      document["mentions"].append(mention)
+                      mention_span_index += 1
+                      break
+                  else:
+                      mention_span_index += 1
 
-        mentions = [Mention(**o) for o in document["mentions"]]
-        documents.append(Document(doc_name, document["words"], mentions))
+          mentions = [Mention(**o) for o in document["mentions"]]
+          #print(mentions)
+          '''print('doc_name: {}'.format(doc_name))
+          print('document: {}'.format(document["words"]))
+          print('mentions: {}'.format(mentions))'''
+          documents.append(Document(doc_name, document["words"], mentions))
+        except:
+          print(doc_name, ' failed!')
 
+    #print('DOCUMENTS: {}'.format(documents))
     return documents
 
 
 def load_mentions_from_csv_file(path, person_names):
     mention_data = defaultdict(list)
-    with open(path, "r", encoding='utf-8') as f:
+    #with open(path, "r", encoding='utf-8') as f:
+    with open(path, "r") as f:
         for line in f:
-            comps = line.strip().split("\t")
-            doc_name = comps[0] + " " + comps[1]
-            mention_text = comps[2]
+            #try:
+              comps = line.strip().split("\t")
+              print(comps)
+              doc_name = comps[0] + " " + comps[1]
+              mention_text = comps[2]
 
-            if comps[6] != "EMPTYCAND":
-                candidates = [c.split(",") for c in comps[6:-2]]
-                candidates = [Candidate(",".join(c[2:]), float(c[1])) for c in candidates]
-                candidates = [c for c in candidates if c.title]
-                candidates = sorted(candidates, key=lambda c: c.prior_prob, reverse=True)
-            else:
-                candidates = []
+              if comps[6] != "EMPTYCAND":
+                  candidates = [c.split(",") for c in comps[6:-2]]
+                  candidates = [Candidate(",".join(c[2:]), float(c[1])) for c in candidates]
+                  candidates = [c for c in candidates if c.title]
+                  candidates = sorted(candidates, key=lambda c: c.prior_prob, reverse=True)
+              else:
+                  candidates = []
 
-            title = comps[-1].split(",")
-            if title[0] == "-1":
-                title = ",".join(title[2:])
-            else:
-                title = ",".join(title[3:])
+              title = comps[-1].split(",")
+              if title[0] == "-1":
+                  title = ",".join(title[2:])
+              else:
+                  title = ",".join(title[3:])
 
-            title = title.replace("&amp;", "&")
-            if not title:  # we use only mentions with valid referent entities
-                continue
+              title = title.replace("&amp;", "&")
+              if not title:  # we use only mentions with valid referent entities
+                  continue
 
-            mention_data[doc_name].append(dict(text=mention_text, candidates=candidates, title=title))
+              mention_data[doc_name].append(dict(text=mention_text, candidates=candidates, title=title))
+            #except:
+              #1+1
 
     def find_coreference(target_mention, mention_list):
         target_mention_text = target_mention["text"].lower()
         ret = []
 
         for mention in mention_list:
+            #print(mention["candidates"])
             if not mention["candidates"] or mention["candidates"][0].title not in person_names:
                 continue
 
@@ -272,7 +364,7 @@ def load_mentions_from_csv_file(path, person_names):
                 end_pos == len(mention_text) - 1 or mention_text[end_pos + 1] == " "
             ):
                 ret.append(mention)
-
+        #print('RET LEN: ', len(ret))
         return ret
 
     for _, mentions in mention_data.items():
@@ -291,6 +383,7 @@ def load_mentions_from_csv_file(path, person_names):
                     [Candidate(t, p) for (t, p) in new_cands.items()], key=lambda c: c.prior_prob, reverse=True
                 )
 
+    #print('MENTION_DATA: {}'.format(mention_data))
     return mention_data
 
 
@@ -298,7 +391,8 @@ def load_ppr_candidates(documents, dataset_dir):
     for document in documents:
         target_file = os.path.join(os.path.join(dataset_dir, re.match(r"^\d*", document.id).group(0)))
         candidates = []
-        with open(target_file, encoding='utf-8') as f:
+        #with open(target_file, encoding='utf-8') as f:
+        with open(target_file) as f:
             for line in f:
                 if line.startswith("ENTITY"):
                     mention_text = line.split("\t")[7][9:]
@@ -335,6 +429,8 @@ def convert_documents_to_features(
 
     def generate_feature_dict(tokens, mentions, doc_start, doc_end):
         all_tokens = [tokenizer.cls_token] + tokens[doc_start:doc_end] + [tokenizer.sep_token]
+        #print(all_tokens)
+        #print(tokenizer)
         word_ids = np.array(tokenizer.convert_tokens_to_ids(all_tokens), dtype=np.int)
         word_attention_mask = np.ones(len(all_tokens), dtype=np.int)
         word_segment_ids = np.zeros(len(all_tokens), dtype=np.int)

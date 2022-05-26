@@ -223,7 +223,7 @@ class MentionDB(object):
     def build_from_p_e_m_file(
         p_e_m_file, dump_db, wiki_mention_db, tokenizer, normalizer, out_file, max_mention_length
     ):
-        with open(p_e_m_file) as f:
+        with open(p_e_m_file, encoding='utf-8') as f:
             lines = f.readlines()
 
         name_dict = defaultdict(Counter)

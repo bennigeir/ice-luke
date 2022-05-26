@@ -46,6 +46,12 @@ class Trainer(object):
         self.scheduler = self._create_scheduler(self.optimizer)
 
     def train(self):
+        ###
+        the_last_loss = 100
+        patience = 10
+        trigger_times = 0
+        ###
+
         model = self.model
         optimizer = self.optimizer
 
@@ -86,12 +92,21 @@ class Trainer(object):
 
         model.train()
 
+        train_loss_list = []
+        temp_x, temp_y = [], []
+        import matplotlib.pyplot as plt
+
         with tqdm(total=self.num_train_steps, disable=self.args.local_rank not in (-1, 0)) as pbar:
             while True:
                 for step, batch in enumerate(self.dataloader):
+                    #print(batch)
                     inputs = {k: v.to(self.args.device) for k, v in self._create_model_arguments(batch).items()}
                     outputs = model(**inputs)
                     loss = outputs[0]
+
+                    ###
+                    #the_current_loss = loss.item()
+
                     if self.args.gradient_accumulation_steps > 1:
                         loss = loss / self.args.gradient_accumulation_steps
 
@@ -118,6 +133,10 @@ class Trainer(object):
                         pbar.update()
                         global_step += 1
 
+                        ###
+                        train_loss_list.append([global_step,loss.item()])
+                        ###
+
                         if self.step_callback is not None:
                             self.step_callback(model, global_step)
 
@@ -136,12 +155,45 @@ class Trainer(object):
 
                         if global_step == self.num_train_steps:
                             break
+                    ###
+                    '''
+                    if the_current_loss > the_last_loss:
+                        trigger_times += 1
+                        #print('trigger times:', trigger_times)
+            
+                        if trigger_times >= patience:
+                            #print('Early stopping!\nStart to test process.')
+                            
+                            for i in train_loss_list:
+                                temp_x.append(i[0])
+                                temp_y.append(i[1])
+                            plt.plot(temp_x, temp_y)
+                            plt.savefig('loss_early.png')
+                            
+
+                            return model, global_step, tr_loss / global_step
+            
+                    else:
+                        #print('trigger times: 0')
+                        trigger_times = 0
+            
+                    the_last_loss = the_current_loss
+                    '''
+                    ###
 
                 if global_step == self.num_train_steps:
                     break
                 epoch += 1
 
         logger.info("global_step = %s, average loss = %s", global_step, tr_loss / global_step)
+
+        ###
+        for i in train_loss_list:
+            temp_x.append(i[0])
+            temp_y.append(i[1])
+        plt.plot(temp_x, temp_y)
+        plt.savefig('loss.png')
+        ###
 
         return model, global_step, tr_loss / global_step
 

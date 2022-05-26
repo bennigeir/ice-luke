@@ -1,9 +1,0 @@
-{
-  "number_of_items": 11412925,
-  "max_seq_length": 512,
-  "max_entity_length": 128,
-  "max_mention_length": 30,
-  "min_sentence_length": 5,
-  "tokenizer_class": "RobertaTokenizerFast",
-  "language": "en"
-}

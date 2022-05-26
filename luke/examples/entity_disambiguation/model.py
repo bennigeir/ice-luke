@@ -71,6 +71,7 @@ class LukeForEntityDisambiguation(LukeModel):
             entity_segment_ids,
             entity_attention_mask,
         )
+
         logits = self.entity_predictions(encoder_output[1]).view(-1, self.config.entity_vocab_size)
 
         if entity_candidate_ids is not None:
